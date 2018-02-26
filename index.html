@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<meta charset='utf-8'>
+<head>
+<script src='https://d3js.org/d3.v4.min.js'></script>
+
+<link href="https://fonts.googleapis.com/css?family=Lato" rel="stylesheet"> 
+
+  <style>
+  
+  body{
+    margin: 50px;
+    background: #e8bd67;
+  }
+
+  h1, p{
+    font-family: 'Lato', sans-serif;
+    text-align: left;
+    text-align: center;
+  }
+
+  p.details{
+    color: #888;
+  }
+
+  .container{
+    margin: 0 auto;
+    width: 560px;
+  }
+
+  #chart{
+    margin-left: 15%;
+    width: 380px;
+    height: 435px;
+  }
+
+  @media only screen 
+  and (max-width: 480px) 
+  and (min-width: 320px)
+  and (orientation: portrait) 
+  and (-webkit-min-device-pixel-ratio: 1.5){
+
+      body{
+        margin: 0;
+        width: 100%;
+      }
+
+        .container{
+            margin: 0;
+            width: 320px;
+        }
+
+        #chart{
+            margin-left: 0;
+            width: 320px;
+            height: 300px;
+        }
+
+
+  }
+
+  </style>
+</head>
+<body>
+    <div class="container">
+      <svg id="chart"></svg>
+      <svg id="legend"></svg>
+      <h1>Corporate Vs Craft brewery chart</h1>
+      <p>Corporate Breweries: 72% - Craft Breweries: 28%</p>
+    </div>
+</body>
+  <script>
+
+    var pintData = [{x:53, y:36},// Top right corner
+                   {x:53, y:44},
+                   {x:55.3, y:50},
+                   {x:56, y:55},// Outer curve on right side
+                   {x:55.3, y:60},
+                   {x:52, y:71},
+                   {x:46.5, y:114},
+                   {x:40, y:119.3},
+                   {x:23, y:119.5},
+                   {x:14, y:116.5},
+                   {x:11.5, y:94},
+                   {x:9.5, y:69},
+                   {x:7, y:60},
+                   {x:6.2, y:54},// Outer curve on left side
+                   {x:7, y:49},
+                   {x:9, y:44},
+                   {x:9, y:36.8},
+                   {x:12, y:36},// Top left corner
+                   {x:54, y:36}];// End at the top right corner
+
+    if(screen.width <= 480){
+            var margin = {top: 10, right: -50, bottom: 0, left: 0},
+            width = 320,
+            height = 300,
+            innerHeight = height - margin.top - margin.bottom;
+
+        var legendMargin = {top: 20, right: 0, bottom: 0, left: 0},
+            legendHeight = 200,
+            legendWidth = 300;
+
+    }else{
+        var margin = {top: 10, right: -50, bottom: 0, left: 0},
+            width = 380,
+            height = 435,
+            innerHeight = height - margin.top - margin.bottom;
+
+        var legendMargin = {top: 20, right: 0, bottom: 0, left: 0},
+            legendHeight = 200,
+            legendWidth = 300;
+
+    }
+
+    // Stacked chart svg
+    var svg = d3.select('#chart')
+                .append("svg")
+                .attr('width', width)
+                .attr('height', height)
+
+
+    // Legend svg
+    var svgLegend = d3.select('#legend')
+                    .append("svg")
+                    .attr('width', legendWidth)
+                    .attr('height', legendHeight);
+
+    // Bar chart group  
+    g = svg.append('g')
+            .attr('transform', 'translate(-20,' + margin.top + ')');
+
+    // Legend group
+    gLegend = svgLegend.append('g')
+              .attr('x',0)
+              .attr('transform', 'translate(0,55)');
+
+    var interpolate = d3.curveCardinal.tension(0.35);
+
+    var pintOutline = d3.line()
+      .x(function(d, i) { if(screen.width <= 480){ return d.x * 3.4 }
+          else{ return d.x * 5 };
+        })
+      .y(function(d, i) { if(screen.width <= 480){ return d.y * 3.4 }
+            else{ return d.y * 5 };
+        })
+      .curve(interpolate);
+
+      // Clipping path in shape of pint glass
+     var pintClip = g.append('clipPath')
+      .attr('id','clip')
+      .attr('transform', function(d){
+              if(screen.width <= 480){ return 'translate(50,-120)'; }
+              else{ return 'translate(50,-180)';}
+            });
+
+      pintClip.selectAll('path')
+      .data([pintData])
+      .enter()
+      .append('path')
+      .attr('class', 'pintImage')
+      .attr('id','clip-pint')
+      .attr('d', pintOutline);
+
+
+    var gClipping = g.append('g')
+      .attr('clip-path','url(#clip)')
+      .attr('transform', 'translate(0,0)');
+
+    var x = d3.scaleBand()
+        .rangeRound([0, width])
+        .padding(0.3)
+        .align(0.3);
+
+    var y = d3.scaleLinear()
+        .rangeRound([height, 0]);
+
+    var color = d3.scaleOrdinal(['#603813','white']);
+
+    var stack = d3.stack();
+
+    d3.csv('brewery-type.csv', type, function(error, data) {
+      if (error) throw error;
+
+      data.sort(function(a, b) { return b.total - a.total; });
+
+      x.domain(data.map(function(d) { return d.type; }));
+      y.domain([0, d3.max(data, function(d) { return d.total; })]).nice();
+      color.domain(data.columns.slice(1));
+
+      var barStack = gClipping.selectAll('.pints')
+          .data(stack.keys(data.columns.slice(1))(data))
+          .enter().append('g')
+            .attr('class', 'pints')
+            .attr('fill', function(d) { return color(d.key); })
+          .selectAll('rect')
+          .data(function(d) { return d; })
+          .enter().append('rect')
+            .attr('x', function(d) { return x(d.data.type); })
+            .attr('y', innerHeight)
+            .attr('height',0)
+            .attr('width', x.bandwidth() * 1.5);
+         
+      // Bar transitions 
+      barStack.transition()
+          .delay(500)
+          .duration(2000)
+          .ease(d3.easeLinear)
+          .attr('height', function(d) { return (y(d[0]) - y(d[1])); })
+          .attr('y', function(d) { return y(d[1]); });
+
+      // Bar text
+      var text = barStack.selectAll('text')
+          .data(stack.keys(data.columns.slice(1))(data))
+          .enter()
+          .append('text')
+          .attr('dy', '.35em')
+          .attr('class','beer-percent')
+          .style('font-size',15)
+          .style('fill','#000')
+          .style('text-anchor', 'middle')
+          .text(function(d) { return d3.format(".2s")(d.y1); })
+    	  .attr("y", function(d) { return y(d.y1)+(y(d.y0) - y(d.y1))/2; })
+    	  .attr("x", x.bandwidth()/3);
+
+
+      // Stroke path of pint glass surround clipping path.
+      var pintStroke = g.append('g')
+        .attr('transform', 'translate(50,-180)');
+
+      pintStroke.selectAll('path')
+        .data([pintData])
+        .enter()
+        .append('path')
+        .attr('class', 'pintImage')
+        .attr('d', pintOutline)
+        .attr('fill','none')
+        .attr('stroke','#603813')
+        .attr('stroke-width',10)
+        .attr('transform',function(d){
+            if(screen.width <= 480){ return 'translate(0,57)';
+            }else{ return 'translate(0,0)'; }
+          });
+
+
+    // Legend
+    var legend = gLegend.selectAll('.legend')
+        .data(data.columns.slice(1).reverse())
+        .enter().append('g')
+        .attr('class', 'legend')
+        .attr('transform', function(d, i) { return 'translate(-200,' + i * 35 + ')'; })
+        .style('font', '16px sans-serif');
+
+
+    legend.append('rect')
+      .attr('x', width + 5)
+      .attr('width', 22)
+      .attr('height', 22)
+      .attr('fill', color)
+      .attr('stroke','#603813')
+      .attr('stroke-width',3);
+
+    legend.append('text')
+      .attr('x', width + 44)
+      .attr('y', 9)
+      .attr('dy', '.35em')
+      .attr('text-anchor', 'start')
+      .text(function(d) { return d; });
+
+  });
+
+    function type(d, i, columns) {
+      for (i = 1, t = 0; i < columns.length; ++i) t += d[columns[i]] = +d[columns[i]];
+      d.total = t;
+      return d;
+    }
+
+  </script>
+</body>
+</html>
